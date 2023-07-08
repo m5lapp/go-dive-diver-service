@@ -26,23 +26,11 @@ type Diver struct {
 	DefaultDivingTZ      *string         `json:"default_diving_timezone"`
 }
 
-// DiverUser represents the a Diver combined with their base information from the User service.
+// DiverUser contains the base User fields from the User sevice, combined with
+// the Diver-specific fields for passing to clients.
 type DiverUser struct {
+	User
 	Diver
-	Name         string          `json:"name"`
-	FriendlyName *string         `json:"friendly_name,omitempty"`
-	BirthDate    *jsonz.DateOnly `json:"birth_date,omitempty"`
-	Gender       *string         `json:"gender,omitempty"`
-	CountryCode  *string         `json:"country_code,omitempty"`
-	TimeZone     *string         `json:"time_zone,omitempty"`
-}
-
-type User struct {
-	DiverUser
-}
-
-type DiverUserResponse struct {
-	User User `json:"user"`
 }
 
 type DiverModel struct {
