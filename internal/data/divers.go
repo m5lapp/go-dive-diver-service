@@ -17,7 +17,7 @@ var (
 // Diver represents a human diver who is a user of the go-dive system. It embeds
 // a standard User struct and adds some additional fields.
 type Diver struct {
-	ID                   int64           `json:"-"`
+	UserID               int64           `json:"user_id"`
 	Version              int             `json:"-"`
 	Email                string          `json:"email"`
 	DivingSince          *jsonz.DateOnly `json:"diving_since"`
@@ -74,15 +74,15 @@ func (m DiverModel) Insert(diver *Diver) error {
 	// can be added to the User struct.
 	query := `
 		insert into divers (
-			email, diving_since, dive_number_offset,
-			default_diving_country, default_diving_timezone
+			user_id, diving_since, dive_number_offset, default_diving_country,
+			default_diving_timezone
 		)
 		values ($1, $2, $3, $4, $5)
-	 returning id, version
+	 returning version
 	`
 
 	args := []any{
-		diver.Email,
+		diver.UserID,
 		diver.DivingSince,
 		diver.DiveNumberOffset,
 		diver.DefaultDivingCountry,
@@ -93,7 +93,7 @@ func (m DiverModel) Insert(diver *Diver) error {
 	defer cancel()
 
 	row := m.DB.QueryRowContext(ctx, query, args...)
-	err := row.Scan(&diver.ID, &diver.Version)
+	err := row.Scan(&diver.Version)
 	if err != nil {
 		switch {
 		case err.Error() == `pq: duplicate key value violates unique constraint "divers_email_key"`:
