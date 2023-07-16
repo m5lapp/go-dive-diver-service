@@ -17,9 +17,8 @@ var (
 // Diver represents a human diver who is a user of the go-dive system. It embeds
 // a standard User struct and adds some additional fields.
 type Diver struct {
-	UserID               int64           `json:"user_id"`
+	UserID               string          `json:"user_id"`
 	Version              int             `json:"-"`
-	Email                string          `json:"email"`
 	DivingSince          *jsonz.DateOnly `json:"diving_since"`
 	DiveNumberOffset     int             `json:"dive_number_offset"`
 	DefaultDivingCountry *string         `json:"default_diving_country"`
@@ -29,7 +28,13 @@ type Diver struct {
 // DiverUser contains the base User fields from the User sevice, combined with
 // the Diver-specific fields for passing to clients.
 type DiverUser struct {
-	User
+	Email        string          `json:"email"`
+	Name         string          `json:"name"`
+	FriendlyName *string         `json:"friendly_name,omitempty"`
+	BirthDate    *jsonz.DateOnly `json:"birth_date,omitempty"`
+	Gender       *string         `json:"gender,omitempty"`
+	CountryCode  *string         `json:"country_code,omitempty"`
+	TimeZone     *string         `json:"time_zone,omitempty"`
 	Diver
 }
 
@@ -41,8 +46,6 @@ type DiverModel struct {
 // validator.Validator struct. Only the additional fields will be validated. The
 // base User fields can be validated by the go-user-service service.
 func ValidateDiver(v *validator.Validator, diver *Diver) {
-	validator.ValidateEmail(v, diver.Email)
-
 	if diver.DivingSince != nil {
 		inPast := diver.DivingSince.Before(time.Now())
 		v.Check(inPast, "diving_since", "Must not be in the future")
@@ -96,7 +99,7 @@ func (m DiverModel) Insert(diver *Diver) error {
 	err := row.Scan(&diver.Version)
 	if err != nil {
 		switch {
-		case err.Error() == `pq: duplicate key value violates unique constraint "divers_email_key"`:
+		case err.Error() == `pq: duplicate key value violates unique constraint "divers_pkey"`:
 			return ErrDuplicateEmail
 		default:
 			return err
@@ -104,4 +107,41 @@ func (m DiverModel) Insert(diver *Diver) error {
 	}
 
 	return nil
+}
+
+// GetByID queries the database for a diver record with the given User ID.
+// If no matching record exists, ErrRecordNotFound is returned.
+func (m DiverModel) GetByID(id string) (*Diver, error) {
+	query := `
+		select
+		    user_id, version, diving_since, dive_number_offset,
+			default_diving_country, default_diving_timezone
+		  from divers
+		 where user_id = $1
+	`
+
+	var diver Diver
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := m.DB.QueryRowContext(ctx, query, id).Scan(
+		&diver.UserID,
+		&diver.Version,
+		&diver.DivingSince,
+		&diver.DiveNumberOffset,
+		&diver.DefaultDivingCountry,
+		&diver.DefaultDivingTZ,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &diver, nil
 }

@@ -4,6 +4,8 @@ import "github.com/m5lapp/go-service-toolkit/serialisation/jsonz"
 
 // User represents a user's base details returned from the User service.
 type User struct {
+	UserID       string          `json:"user_id"`
+	Email        string          `json:"email"`
 	Name         string          `json:"name"`
 	FriendlyName *string         `json:"friendly_name,omitempty"`
 	BirthDate    *jsonz.DateOnly `json:"birth_date,omitempty"`

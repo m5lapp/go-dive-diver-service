@@ -13,7 +13,10 @@ import (
 )
 
 func (app *app) createDiverHandler(w http.ResponseWriter, r *http.Request) {
-	var input data.Diver
+	input := struct {
+		data.Diver
+		Email string `json:"email"`
+	}{}
 
 	err := jsonz.ReadJSON(w, r, &input)
 	if err != nil {
@@ -22,14 +25,15 @@ func (app *app) createDiverHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := validator.New()
-	data.ValidateDiver(v, &input)
+	data.ValidateDiver(v, &input.Diver)
+	validator.ValidateEmail(v, input.Email)
 	if !v.Valid() {
 		app.FailedValidationResponse(w, r, v.Errors)
 		return
 	}
 
 	// Call the User service to see if the given user has a valid account.
-	url := fmt.Sprintf("%s%s%s", app.cfg.svcUser.Addr, "/v1/user/", input.Email)
+	url := fmt.Sprintf("%s%s%s", app.cfg.svcUser.Addr, "/v1/user/email/", input.Email)
 	httpResp, res, err := jsonz.RequestJSend(http.MethodGet, url, 2*time.Second, nil)
 	if err != nil {
 		app.ServerErrorResponse(w, r, err)
@@ -63,14 +67,15 @@ func (app *app) createDiverHandler(w http.ResponseWriter, r *http.Request) {
 
 	// The JSend body contains a success Status, so use a second decoding pass
 	// to decode the JSend Data field into targetStruct.
-	userResponse := &data.UserResponse{User: data.User{}}
-	err = jsonz.DecodeJSON(bytes.NewReader(res.Data), userResponse, true)
+	userResp := &data.UserResponse{User: data.User{}}
+	err = jsonz.DecodeJSON(bytes.NewReader(res.Data), userResp, true)
 	if err != nil {
 		app.ServerErrorResponse(w, r, err)
 		return
 	}
 
-	err = app.models.Divers.Insert(&input)
+	input.UserID = userResp.User.UserID
+	err = app.models.Divers.Insert(&input.Diver)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrDuplicateEmail):
@@ -84,7 +89,16 @@ func (app *app) createDiverHandler(w http.ResponseWriter, r *http.Request) {
 
 	app.Logger.Info("New diver successfully registered", "diver", input.Email)
 
-	du := data.DiverUser{Diver: input, User: userResponse.User}
+	du := data.DiverUser{
+		Email:        input.Email,
+		Name:         userResp.User.Name,
+		FriendlyName: userResp.User.FriendlyName,
+		BirthDate:    userResp.User.BirthDate,
+		Gender:       userResp.User.Gender,
+		CountryCode:  userResp.User.CountryCode,
+		TimeZone:     userResp.User.TimeZone,
+		Diver:        input.Diver,
+	}
 	err = jsonz.WriteJSendSuccess(w, http.StatusAccepted, nil, jsonz.Envelope{"diver": du})
 	if err != nil {
 		app.ServerErrorResponse(w, r, err)

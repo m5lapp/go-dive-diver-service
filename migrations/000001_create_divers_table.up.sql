@@ -5,7 +5,7 @@ create table if not exists divers (
     dive_number_offset      smallint not null default 0, 
     default_diving_country  text,
     default_diving_timezone text
-)
+);
 
 create index if not exists divers_user_id_idx
     on divers using gin (to_tsvector('simple', user_id));
