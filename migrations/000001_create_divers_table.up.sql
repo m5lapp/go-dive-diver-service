@@ -1,5 +1,5 @@
 create table if not exists divers (
-    user_id                 char(20) primary key,
+    user_id                 text primary key check (length(user_id) = 20),
     version                 integer not null default 1,
     diving_since            date,
     dive_number_offset      smallint not null default 0, 
