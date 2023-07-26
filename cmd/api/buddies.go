@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/julienschmidt/httprouter"
 	"github.com/m5lapp/go-dive-diver-service/internal/data"
 	"github.com/m5lapp/go-service-toolkit/serialisation/jsonz"
 	"github.com/m5lapp/go-service-toolkit/validator"
@@ -108,6 +109,36 @@ func (app *app) createBuddyHandler(w http.ResponseWriter, r *http.Request) {
 
 	b := jsonz.Envelope{"buddy": input}
 	err = jsonz.WriteJSendSuccess(w, http.StatusCreated, nil, b)
+	if err != nil {
+		app.ServerErrorResponse(w, r, err)
+	}
+}
+
+func (app *app) listBuddiesHandler(w http.ResponseWriter, r *http.Request) {
+	var userID string
+
+	params := httprouter.ParamsFromContext(r.Context())
+	userID = params.ByName("id")
+	v := validator.New()
+
+	v.Check(validator.Matches(userID, validator.BetterGUIDRX),
+		"user-id", "must be a valid BetterGUID")
+
+	if !v.Valid() {
+		app.FailedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	// TODO: Currently returns a 200 and an empty result set if the diverID does
+	// not exist. Might want to check the diverID first.
+	buddies, err := app.models.Buddies.GetAllForDiver(userID)
+	if err != nil {
+		app.ServerErrorResponse(w, r, err)
+		return
+	}
+
+	envelope := jsonz.Envelope{"buddies": buddies}
+	err = jsonz.WriteJSON(w, http.StatusOK, nil, envelope)
 	if err != nil {
 		app.ServerErrorResponse(w, r, err)
 	}

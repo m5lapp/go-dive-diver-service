@@ -10,15 +10,18 @@ import (
 
 // Buddy represents a diver's buddy.
 type Buddy struct {
-	Version      int     `json:"-"`
-	UserID       string  `json:"user_id"`
-	BuddyUserID  *string `json:"-"`
-	Name         string  `json:"name"`
-	Email        *string `json:"email"`
-	PhoneNumber  *string `json:"phone_number"`
-	Organisation *string `json:"organisation"`
-	OrgMemberID  *string `json:"org_member_id"`
-	Notes        *string `json:"notes"`
+	ID           int64     `json:"-"`
+	Version      int       `json:"-"`
+	CreatedAt    time.Time `json:"-"`
+	UpdatedAt    time.Time `json:"-"`
+	UserID       string    `json:"user_id"`
+	BuddyUserID  *string   `json:"-"`
+	Name         string    `json:"name"`
+	Email        *string   `json:"email"`
+	PhoneNumber  *string   `json:"phone_number"`
+	Organisation *string   `json:"organisation"`
+	OrgMemberID  *string   `json:"org_member_id"`
+	Notes        *string   `json:"notes"`
 }
 
 type BuddyModel struct {
@@ -67,7 +70,7 @@ func (m BuddyModel) Insert(buddy *Buddy) error {
 			org_member_id, notes
 		)
 		values ($1, $2, $3, $4, $5, $6, $7, $8)
-	 returning version
+	 returning id, version, created_at, updated_at
 	`
 
 	args := []any{
@@ -85,7 +88,7 @@ func (m BuddyModel) Insert(buddy *Buddy) error {
 	defer cancel()
 
 	row := m.DB.QueryRowContext(ctx, query, args...)
-	err := row.Scan(&buddy.Version)
+	err := row.Scan(&buddy.ID, &buddy.Version, &buddy.CreatedAt, &buddy.UpdatedAt)
 	if err != nil {
 		switch {
 		case err.Error() == `pq: duplicate key value violates unique constraint "buddies_user_id_buddy_user_id_key"`,
@@ -97,4 +100,58 @@ func (m BuddyModel) Insert(buddy *Buddy) error {
 	}
 
 	return nil
+}
+
+// GetAllForDiver queries the database for all the buddies of the Diver with the
+// given UserID.
+func (m BuddyModel) GetAllForDiver(userID string) ([]*Buddy, error) {
+	query := `
+		select
+		    id, version, created_at, updated_at, user_id, buddy_user_id, name,
+			email, phone_number, organisation, org_member_id, notes
+		  from buddies
+		 where user_id = $1
+	  order by name desc
+	`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := m.DB.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	buddies := []*Buddy{}
+	for rows.Next() {
+		var buddy Buddy
+
+		err := rows.Scan(
+			&buddy.ID,
+			&buddy.Version,
+			&buddy.CreatedAt,
+			&buddy.UpdatedAt,
+			&buddy.UserID,
+			&buddy.BuddyUserID,
+			&buddy.Name,
+			&buddy.Email,
+			&buddy.PhoneNumber,
+			&buddy.Organisation,
+			&buddy.OrgMemberID,
+			&buddy.Notes,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		buddies = append(buddies, &buddy)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return buddies, nil
 }
