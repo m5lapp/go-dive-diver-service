@@ -40,7 +40,7 @@ db/migrations/new:
 	@echo "Creating migration files for ${name}..."
 	migrate create --seq --ext .sql --dir ./migrations/ ${name}
 
-## db/migrations/up: Apply all up database migrations
+## db/migrations/up n=$1: Apply all up database migrations
 .PHONY: db/migrations/up
 db/migrations/up: confirm
 	@echo "Running up migrations..."
@@ -48,7 +48,7 @@ db/migrations/up: confirm
 	migrate \
 	    --path ./migrations/ \
 		--database ${GO_USER_DB_DSN}?sslmode=disable \
-		up
+		up ${n}
 
 ## db/migrations/down: Apply all down database migrations
 .PHONY: db/migrations/down
