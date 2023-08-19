@@ -68,3 +68,41 @@ func (app *app) createAgencyHandler(w http.ResponseWriter, r *http.Request) {
 		app.ServerErrorResponse(w, r, err)
 	}
 }
+
+func (app *app) fetchAgencyHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.ReadIDParam(r)
+	if err != nil {
+		app.NotFoundResponse(w, r)
+		return
+	}
+
+	agency, err := app.models.Agencies.GetOneByID(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.NotFoundResponse(w, r)
+		default:
+			app.ServerErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	data := jsonz.Envelope{"agency": agency}
+	err = jsonz.WriteJSendSuccess(w, http.StatusOK, nil, data)
+	if err != nil {
+		app.ServerErrorResponse(w, r, err)
+	}
+}
+
+func (app *app) listAgenciesHandler(w http.ResponseWriter, r *http.Request) {
+	agencies, err := app.models.Agencies.GetAll()
+	if err != nil {
+		app.ServerErrorResponse(w, r, err)
+	}
+
+	data := jsonz.Envelope{"agencies": agencies}
+	err = jsonz.WriteJSendSuccess(w, http.StatusOK, nil, data)
+	if err != nil {
+		app.ServerErrorResponse(w, r, err)
+	}
+}

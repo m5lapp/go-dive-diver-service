@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/m5lapp/go-service-toolkit/persistence/sqldb"
@@ -14,8 +15,8 @@ type Agency struct {
 	ID         int64   `json:"id"`
 	CommonName string  `json:"common_name"`
 	FullName   string  `json:"full_name"`
-	Acronym    *string `json:"acronym"`
-	URL        *string `json:"url"`
+	Acronym    *string `json:"acronym,omitempty"`
+	URL        *string `json:"url,omitempty"`
 }
 
 type AgencyModel struct {
@@ -80,11 +81,47 @@ func (m AgencyModel) Insert(agency *Agency) error {
 	return nil
 }
 
+func (m AgencyModel) GetOneByID(id int64) (*Agency, error) {
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+	query := `
+		select
+		      id, common_name, full_name, acronym, url
+		 from agencies
+		where id = $1
+	`
+
+	var agency Agency
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	err := m.DB.QueryRowContext(ctx, query, id).Scan(
+		&agency.ID,
+		&agency.CommonName,
+		&agency.FullName,
+		&agency.Acronym,
+		&agency.URL,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &agency, nil
+}
+
 // GetAll queries the database for all the dive certification agencies.
 func (m AgencyModel) GetAll() ([]*Agency, error) {
 	query := `
 		select
-		    id, common_name, full_name, acronym, url
+		       id, common_name, full_name, acronym, url
 		  from agencies
 	  order by common_name desc
 	`
